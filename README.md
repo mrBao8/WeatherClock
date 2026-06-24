@@ -63,10 +63,10 @@ WeatherClock/
 
 ## 🖥️ 硬件与开发环境
 * **核心板**：STM32F407VET6 (ARM Cortex-M4，主频 168MHz)
-* **显示介质**：2.0寸 LCD 屏幕 (ST7789 驱动芯片，240x320 分辨率)
+* **显示介质**：2.4寸 LCD 屏幕 (ST7789 驱动芯片，240x320 分辨率)
 * **传感器**：AHT20 温湿度传感器 (I2C 总线)
 * **无线模组**：ESP32-C3 / ESP-01S (使用标准 ESP-AT 固件)
-* **开发链工具**：Keil MDK uVision v5.38 + STM32F4xx 固件库 + GCC
+* **开发链工具**：Keil MDK uVision v5.38 + STM32F4xx 固件库 
 * **调试仪器**：逻辑分析仪 (用于 SPI/I2C/USART 时序捕捉与协议分析)、万用表、串口助手
 
 ---
