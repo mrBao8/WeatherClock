@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>STM32F40_41xxx,USE_STDPERIPH_DRIVER,HSE_VALUE=8000000</Define>
               <Undefine></Undefine>
-              <IncludePath>..\app;..\app\ui;..\app\font;..\app\image;..\devices;..\driver;..\system;..\firmware\driver\inc;..\firmware\cmsis\device;..\firmware\cmsis\core</IncludePath>
+              <IncludePath>..\app;..\app\ui;..\app\font;..\app\image;..\devices;..\driver;..\system;..\firmware\driver\inc;..\firmware\cmsis\device;..\firmware\cmsis\core;..\third_lib\freertos\include;..\third_lib\freertos\portable</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -396,25 +396,45 @@
               <FilePath>..\app\wireless.c</FilePath>
             </File>
             <File>
-              <FileName>mloop.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\app\mloop.c</FilePath>
+              <FileName>wireless.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\app\wireless.h</FilePath>
             </File>
             <File>
-              <FileName>mloop.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\app\mloop.h</FilePath>
+              <FileName>app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\app\app.c</FilePath>
             </File>
             <File>
               <FileName>app.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\app\app.h</FilePath>
             </File>
+            <File>
+              <FileName>workqueue.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\app\workqueue.c</FilePath>
+            </File>
+            <File>
+              <FileName>workqueue.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\app\workqueue.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
           <GroupName>app/ui</GroupName>
           <Files>
+            <File>
+              <FileName>ui.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\app\ui\ui.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\app\ui\ui.h</FilePath>
+            </File>
             <File>
               <FileName>welcome_page.c</FileName>
               <FileType>1</FileType>
@@ -879,6 +899,43 @@
         </Group>
         <Group>
           <GroupName>third_lib</GroupName>
+          <Files>
+            <File>
+              <FileName>tasks.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\third_lib\freertos\tasks.c</FilePath>
+            </File>
+            <File>
+              <FileName>queue.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\third_lib\freertos\queue.c</FilePath>
+            </File>
+            <File>
+              <FileName>list.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\third_lib\freertos\list.c</FilePath>
+            </File>
+            <File>
+              <FileName>timers.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\third_lib\freertos\timers.c</FilePath>
+            </File>
+            <File>
+              <FileName>port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\third_lib\freertos\portable\port.c</FilePath>
+            </File>
+            <File>
+              <FileName>heap_4.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\third_lib\freertos\portable\heap_4.c</FilePath>
+            </File>
+            <File>
+              <FileName>FreeRTOSConfig.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\third_lib\freertos\portable\FreeRTOSConfig.h</FilePath>
+            </File>
+          </Files>
         </Group>
       </Groups>
     </Target>

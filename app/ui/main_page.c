@@ -4,22 +4,22 @@
 #include "image.h"
 #include "weather.h"
 #include "page.h"
-#include "lcd.h"
-#include "app.h"
+#include "ui.h"
+#include "wireless.h"
 #include "rtc.h"
 
 extern weather_info_t g_first_weather;
 
 void main_page_display(void)
 {
-	LCD_Clear(BLACK);		//清屏，打黑色底
+	ui_clear(BLACK);		//清屏，打黑色底
 	
 	//--时间日期板块：显示WiFi图标、ssid、时间日期
 	do{
-		LCD_Fill_Color(15, 15, 224, 154, COLOR_WARM_CREAM);	
+		ui_fill_color(15, 15, 224, 154, COLOR_WARM_CREAM);	
 		
 		//显示WiFi图标
-		LCD_Show_Photo(23, 20, &icon_wifi);		
+		ui_show_photo(23, 20, &icon_wifi);		
 		
 		//WIFI_ssid
 		const char *ssid = WIFI_SSID ;
@@ -27,60 +27,54 @@ void main_page_display(void)
 		uint16_t ssid_x = 203 - ssid_len ;
 		if(ssid_len > 165 )
 		{ssid_x = 215 - ssid_len;}
-		LCD_Show_String(ssid_x, 22, "------", BLACK, WHITE, &font16_ascii);
+		ui_show_string(ssid_x, 22, "------", BLACK, WHITE, &font16_ascii);
 		
 		// 初始占位时间
-		LCD_Show_String(25,42,"--:--",BLACK,COLOR_WARM_CREAM,&font76_time);
-		LCD_Show_String(25,121,"----/--/-- 星期-",COLOR_TITANIUM_GRAY,COLOR_WARM_CREAM,&font20);
+		ui_show_string(25,42,"--:--",BLACK,COLOR_WARM_CREAM,&font76_time);
+		ui_show_string(25,121,"----/--/-- 星期-",COLOR_TITANIUM_GRAY,COLOR_WARM_CREAM,&font20);
 		}while(0);
 	
 	//--室内温湿度板块：显示室内温湿度
 	do{
 		
-		LCD_Fill_Color(15, 165, 114, 304, WHITE);	
+		ui_fill_color(15, 165, 114, 304, WHITE);	
 		//显示室内温度
-		LCD_Show_String(19,170,"室内环境",BLACK,WHITE,&font24);
-		LCD_Show_String(86,191,"C",BLACK,WHITE,&font32);
-		LCD_Show_String(91,255,"%",BLACK,WHITE,&font32);
+		ui_show_string(19,170,"室内环境",BLACK,WHITE,&font24);
+		ui_show_string(86,191,"C",BLACK,WHITE,&font32);
+		ui_show_string(91,255,"%",BLACK,WHITE,&font32);
 		// 初始温度占位
-		LCD_Show_String(30,192,"--",BLACK,WHITE,&font54_temper);
-		LCD_Show_String(28,239,"--",BLACK,WHITE,&font54_temper);
+		ui_show_string(30,192,"--",BLACK,WHITE,&font54_temper);
+		ui_show_string(28,239,"--",BLACK,WHITE,&font54_temper);
 	}while(0);
 	
 	//--城市温度板块：显示城市温度、温度计和日常天气图标
 	do{
-		LCD_Fill_Color(125, 165, 224, 304, WHITE);	
+        ui_fill_color(125, 165, 224, 304, WHITE);
+        ui_show_string(127, 166, "Notnet", BLACK, WHITE, &font24);
+        ui_show_string(135, 190, "--", BLACK, WHITE, &font54_temper);
 
-		if (g_first_weather.weather_code == -1) {
-            LCD_Show_String(127, 166, "Notnet", BLACK, WHITE, &font24);
-            LCD_Show_String(135, 190, "--", BLACK, WHITE, &font54_temper); // 温度显示 "--" 替代 "0"
-        } else {
-            LCD_Show_String(127, 166, "洛阳", BLACK, WHITE, &font24);
-            LCD_Show_String(135, 190, "--", BLACK, WHITE, &font54_temper);
-        }
-		// 初始城市天气占位
-		LCD_Show_String(192,189,"C",BLACK,WHITE,&font32);
-		LCD_Show_Photo(166, 240, &icon_na);
-		LCD_Show_Photo(139, 239, &icon_wenduji);
-
-	}while(0);
+        // 初始城市天气占位
+        ui_show_string(192, 189, "C", BLACK, WHITE, &font32);
+        ui_show_photo(166, 240, &icon_na);
+        ui_show_photo(139, 239, &icon_wenduji);
+    }while(0);
 }
 
 void main_page_refresh_wifi_ssid(const char *ssid)
 {
     char str[21];
     snprintf(str, sizeof(str), "%20s", ssid);
-    LCD_Show_String(50, 23, str,BLACK,WHITE,&font16_ascii);
+    ui_show_string(50, 23, str,BLACK,WHITE,&font16_ascii);
 }
 
-void main_page_refresh_time(const rtc_date_time_t *time)	//时间局部刷新，每秒调用一次
+void main_page_refresh_time(const rtc_date_time_t *time)    //时间局部刷新，每秒调用一次
 {
-	char str[6];
-	char comma = (time->second % 2 == 0) ? ':' : ' ';		//对秒取余，偶数闪烁一次
-	snprintf(str,sizeof(str),"%02u%c%02u",time->hour,comma,time->minute);
-	LCD_Show_String(25,42,str,BLACK,WHITE,&font76_time);
-}
+    char str[6];
+    char comma = (time->second % 2 == 0) ? ':' : ' ';
 
+    snprintf(str, sizeof(str), "%02u%c%02u", time->hour, comma, time->minute);
+    ui_show_string(25, 42, str, BLACK, COLOR_WARM_CREAM, &font76_time);
+}
 void main_page_refresh_date(const rtc_date_time_t *date)
 {
     char str[18];
@@ -94,21 +88,28 @@ void main_page_refresh_date(const rtc_date_time_t *date)
         date->weekday == 6 ? "六" :
         date->weekday == 7 ? "天" : "X");
         
-    LCD_Show_String(25, 121, str, COLOR_TITANIUM_GRAY, COLOR_WARM_CREAM, &font20);
+    ui_show_string(25, 121, str, COLOR_TITANIUM_GRAY, COLOR_WARM_CREAM, &font20);
 }
 
 void main_page_refresh_inner_temper(float temp)	//室内温度局部刷新
 {
 	char str[3];
 	snprintf(str, sizeof(str), "%2.0f", temp); // 强制限宽2格，完美覆盖旧数字
-	LCD_Show_String(30, 192, str, BLACK, WHITE, &font54_temper);
+	ui_show_string(30, 192, str, BLACK, WHITE, &font54_temper);
 }
 
 void main_page_refresh_inner_humidity(float humi) //室内湿度局部刷新
 {
     char str[3];
     snprintf(str, sizeof(str), "%2.0f", humi);
-    LCD_Show_String(28, 239, str, BLACK, WHITE, &font54_temper);
+    ui_show_string(28, 239, str, BLACK, WHITE, &font54_temper);
+}
+
+
+void main_page_refresh_outdoor_city(const char *city)
+{
+    ui_fill_color(127, 166, 223, 188, WHITE);
+    ui_show_string(127, 166, "洛阳", BLACK, WHITE, &font24);
 }
 
 void main_page_refresh_outdoor_temper(float temp) //室外温度局部刷新
@@ -116,7 +117,7 @@ void main_page_refresh_outdoor_temper(float temp) //室外温度局部刷新
     char str[3];
     snprintf(str, sizeof(str), "%2.0f", temp);
     // 刷新室外温度
-    LCD_Show_String(135, 190, str, BLACK, WHITE, &font54_temper);
+    ui_show_string(135, 190, str, BLACK, WHITE, &font54_temper);
 }
 
 void main_page_refresh_weather_icon(const int code) //天气图标局部刷新
@@ -138,5 +139,5 @@ void main_page_refresh_weather_icon(const int code) //天气图标局部刷新
         icon = &icon_xue;
     else // 扬沙、龙卷风等
         icon = &icon_na;		//特殊天气未知
-	LCD_Show_Photo(166,240,icon);
+	ui_show_photo(166,240,icon);
 }

@@ -1,14 +1,20 @@
 #ifndef __APP_H__
 #define __APP_H__
 
-#define WIFI_SSID 	 "realmeGT5pro"
-#define WIFI_PASSWD  "11111111"
-#define weather_url  "https://api.seniverse.com/v3/weather/now.json?key=SPmPWR67OXlwayBSU&location=WQPUYY7S4GV2&language=en&unit=c"
+#define MILLISECONDS(x)  (x)
+#define SECONDS(x)       MILLISECONDS((x) * 1000)
+#define MINUTES(x)       SECONDS((x) * 60)
+#define HOURS(x)         MINUTES((x) * 60)
+#define DAYS(x)          HOURS((x) * 24)
 
-void wireless_init(void);
-void wireless_wait_connect(void);
+#define TIME_SYNC_INTERVAL        DAYS(1)
+#define WIFI_UPDATE_INTERVAL      SECONDS(5)
+#define TIME_UPDATE_INTERVAL      SECONDS(1)
+#define INNER_UPDATE_INTERVAL     SECONDS(3)
+#define OUTDOOR_UPDATE_INTERVAL   MINUTES(1)
 
-void Board_LowLevel_Init(void);
-void Board_Init(void);
+void app_init(void);
+void app_network_start(void);
+void app_start(void);
 
 #endif

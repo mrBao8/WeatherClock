@@ -1,10 +1,28 @@
 #include "stm32f4xx.h"                  // Device header
 #include <string.h>
 #include <stdbool.h>
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
 #include "delay.h"
 #include "lcd.h"
 #include "font.h"
 #include "image.h"
+
+#define LCD_DMA_STREAM        DMA1_Stream4
+#define LCD_DMA_CHANNEL       DMA_Channel_0
+#define LCD_DMA_TC_FLAG       DMA_FLAG_TCIF4
+#define LCD_DMA_ALL_FLAGS     (DMA_FLAG_FEIF4 | DMA_FLAG_DMEIF4 | DMA_FLAG_TEIF4 | DMA_FLAG_HTIF4 | DMA_FLAG_TCIF4)
+#define LCD_DMA_CHUNK_PIXELS  1024
+
+static uint16_t lcd_dma_buffer[LCD_DMA_CHUNK_PIXELS];
+static SemaphoreHandle_t lcd_dma_semaphore;
+
+static void Lcd_Dma_Init(void);
+static void Lcd_Dma_Int_Init(void);
+static void LCD_WriteGram16_DMA(const uint16_t *data, uint32_t pixels, bool memory_inc);
+static void LCD_WriteColor_DMA(uint16_t color, uint32_t pixels);
+static void LCD_WriteImage_DMA(const uint8_t *data, uint32_t pixels);
 
 /*开始初始化液晶屏LCD，型号为ST7789*/
 static void Spi2_Init(void)
@@ -47,8 +65,108 @@ static void Spi2_Init(void)
     SPI_Init(SPI2, &SPI_InitStructure);
 	
     SPI_Cmd(SPI2, ENABLE);
+    Lcd_Dma_Init();
 }
 
+static void Lcd_Dma_Int_Init(void)
+{
+    NVIC_InitTypeDef NVIC_InitStructure;
+
+    NVIC_InitStructure.NVIC_IRQChannel = DMA1_Stream4_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 5;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&NVIC_InitStructure);
+    NVIC_SetPriority(DMA1_Stream4_IRQn, 5);
+}
+static void Lcd_Dma_Init(void)
+{
+    DMA_InitTypeDef DMA_InitStructure;
+
+    lcd_dma_semaphore = xSemaphoreCreateBinary();
+    configASSERT(lcd_dma_semaphore);
+    DMA_Cmd(LCD_DMA_STREAM, DISABLE);
+    while (DMA_GetCmdStatus(LCD_DMA_STREAM) != DISABLE);
+    DMA_DeInit(LCD_DMA_STREAM);
+    DMA_ClearFlag(LCD_DMA_STREAM, LCD_DMA_ALL_FLAGS);
+
+    DMA_StructInit(&DMA_InitStructure);
+    DMA_InitStructure.DMA_Channel = LCD_DMA_CHANNEL;
+    DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)&SPI2->DR;
+    DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)lcd_dma_buffer;
+    DMA_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral;
+    DMA_InitStructure.DMA_BufferSize = 1;
+    DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+    DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+    DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
+    DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
+    DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
+    DMA_InitStructure.DMA_Priority = DMA_Priority_High;
+    DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Enable;
+    DMA_InitStructure.DMA_FIFOThreshold = DMA_FIFOThreshold_Full;
+    DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_INC8;
+    DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+    DMA_ITConfig(LCD_DMA_STREAM, DMA_IT_TC, ENABLE);
+    DMA_Init(LCD_DMA_STREAM, &DMA_InitStructure);
+    Lcd_Dma_Int_Init();
+
+    SPI_I2S_DMACmd(SPI2, SPI_I2S_DMAReq_Tx, ENABLE);
+}
+
+static void LCD_WriteGram16_DMA(const uint16_t *data, uint32_t pixels, bool memory_inc)
+{
+    while (pixels > 0)
+    {
+        uint16_t chunk = (pixels > 65535U) ? 65535U : (uint16_t)pixels;
+
+        DMA_Cmd(LCD_DMA_STREAM, DISABLE);
+        while (DMA_GetCmdStatus(LCD_DMA_STREAM) != DISABLE);
+        DMA_ClearFlag(LCD_DMA_STREAM, LCD_DMA_ALL_FLAGS);
+
+        SPI_DataSizeConfig(SPI2, SPI_DataSize_16b);
+        if (memory_inc)
+            LCD_DMA_STREAM->CR |= DMA_SxCR_MINC;
+        else
+            LCD_DMA_STREAM->CR &= ~DMA_SxCR_MINC;
+
+        LCD_DMA_STREAM->M0AR = (uint32_t)data;
+        LCD_DMA_STREAM->NDTR = chunk;
+        DMA_Cmd(LCD_DMA_STREAM, ENABLE);
+
+        xSemaphoreTake(lcd_dma_semaphore, portMAX_DELAY);
+        while (SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_BSY) != RESET);
+        (void)SPI_I2S_ReceiveData(SPI2);
+        (void)SPI2->SR;
+        SPI_DataSizeConfig(SPI2, SPI_DataSize_8b);
+
+        if (memory_inc)
+            data += chunk;
+        pixels -= chunk;
+    }
+}
+
+static void LCD_WriteColor_DMA(uint16_t color, uint32_t pixels)
+{
+    LCD_WriteGram16_DMA(&color, pixels, false);
+}
+
+static void LCD_WriteImage_DMA(const uint8_t *data, uint32_t pixels)
+{
+    while (pixels > 0)
+    {
+        uint16_t chunk = (pixels > LCD_DMA_CHUNK_PIXELS) ? LCD_DMA_CHUNK_PIXELS : (uint16_t)pixels;
+        uint16_t i;
+
+        for (i = 0; i < chunk; i++)
+        {
+            lcd_dma_buffer[i] = ((uint16_t)data[0] << 8) | data[1];
+            data += 2;
+        }
+
+        LCD_WriteGram16_DMA(lcd_dma_buffer, chunk, true);
+        pixels -= chunk;
+    }
+}
 /* 硬件发送函数 */
 static void SPI_WriteByte(uint8_t data)
 {
@@ -182,26 +300,14 @@ static void LCD_AddressSet(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
 //填色函数，参数为--起始坐标(x1,y1),结束坐标(x2,y2),颜色color
 void LCD_Fill_Color(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color)
 {
-	uint32_t i;
-	uint32_t pix =(uint32_t)(x2 -x1 + 1)*(y2 -y1 +1);	//总像素点
-	
-	uint8_t color_h = color >> 8;
-    uint8_t color_l = color & 0xFF;
+    uint32_t pix = (uint32_t)(x2 - x1 + 1) * (y2 - y1 + 1);
 
     LCD_AddressSet(x1, y1, x2, y2);
-    
     LCD_DC_Data();
-    LCD_CS_Low(); // 只拉低一次！
-    
-    for(i = 0; i < pix; i++)
-    {
-        SPI_WriteByte(color_h);
-        SPI_WriteByte(color_l);
-    }
-    
-    LCD_CS_High(); // 填完几万个点后，再拉高
-}
-//清屏函数
+    LCD_CS_Low();
+    LCD_WriteColor_DMA(color, pix);
+    LCD_CS_High();
+}//清屏函数
 void LCD_Clear(uint16_t color)
 {
 	LCD_Fill_Color(0,0,LCD_WIDTH-1,LCD_HEIGHT-1,color);
@@ -210,41 +316,41 @@ void LCD_Clear(uint16_t color)
 //定义一个印刷显示函数，只管刷东西
 static void LCD_draw_font(uint16_t x, uint16_t y, uint16_t fwidth, uint16_t fheight, const uint8_t *model, uint16_t fc, uint16_t bc)
 {
-	uint16_t row, col, byte_idx;
+    uint16_t row, col, byte_idx;
     uint8_t temp;
-	
-    // 动态计算：这一行需要几个字节？(比如宽16需2字节，宽32需4字节)
-    uint16_t bytes_per_row =( fwidth + 7) / 8;   //+7为了防止C语言整除丢小数点。
-	
+    uint32_t out = 0;
+    uint16_t bytes_per_row = (fwidth + 7) / 8;
+
     LCD_AddressSet(x, y, x + fwidth - 1, y + fheight - 1);
     LCD_DC_Data();
-    LCD_CS_Low();	
-	//开始逐行扫描
-	for(row = 0; row < fheight ; row ++)
-	{
-		for(byte_idx = 0;byte_idx < bytes_per_row ; byte_idx ++)
-		{
-			temp = model[row * bytes_per_row + byte_idx]; // 揪出当前字节
-			for(col = 0; col < 8 ; col ++)//列扫描，先印刷高八位，再刷低八位
-			{
-				if ((byte_idx * 8 + col) < fwidth)
-				{
-					if(temp & 0x80)
-					{
-						SPI_WriteByte(fc >> 8);
-						SPI_WriteByte(fc & 0xFF);
-					}
-					else{
-						SPI_WriteByte(bc >> 8);
-						SPI_WriteByte(bc & 0xFF);
-					}
-					temp <<= 1;
-				}
-			}
-		}
-	}
-}
+    LCD_CS_Low();
 
+    for (row = 0; row < fheight; row++)
+    {
+        for (byte_idx = 0; byte_idx < bytes_per_row; byte_idx++)
+        {
+            temp = model[row * bytes_per_row + byte_idx];
+            for (col = 0; col < 8; col++)
+            {
+                if ((byte_idx * 8 + col) < fwidth)
+                {
+                    lcd_dma_buffer[out++] = (temp & 0x80) ? fc : bc;
+                    if (out >= LCD_DMA_CHUNK_PIXELS)
+                    {
+                        LCD_WriteGram16_DMA(lcd_dma_buffer, out, true);
+                        out = 0;
+                    }
+                    temp <<= 1;
+                }
+            }
+        }
+    }
+
+    if (out > 0)
+        LCD_WriteGram16_DMA(lcd_dma_buffer, out, true);
+
+    LCD_CS_High();
+}
 static const uint8_t *ascii_get_model(const char ch, const font_t *font, uint16_t bytes_per_char)
 {
     // 如果人家提供了专门的映射字典（比如搬过来的 54 号 Maple 字库）
@@ -407,25 +513,29 @@ void LCD_Show_String(uint16_t x, uint16_t y, const char *str, uint16_t fc, uint1
 
 void LCD_Show_Photo(uint16_t x, uint16_t y, const image_t *image)
 {
-	if (image == NULL || image->data == NULL) return;
-	if( x >= LCD_WIDTH || y >= LCD_HEIGHT || 
-		x + image->width -1 >= LCD_WIDTH || y + image->height -1 >= LCD_HEIGHT) return ;
-	
-	uint16_t row,col;
-    uint32_t index = 0;
-		
+    uint32_t pixels;
+
+    if (image == NULL || image->data == NULL) return;
+    if (x >= LCD_WIDTH || y >= LCD_HEIGHT ||
+        x + image->width - 1 >= LCD_WIDTH || y + image->height - 1 >= LCD_HEIGHT) return;
+
+    pixels = (uint32_t)image->width * image->height;
+
     LCD_AddressSet(x, y, x + image->width - 1, y + image->height - 1);
     LCD_DC_Data();
-    LCD_CS_Low();	
+    LCD_CS_Low();
+    LCD_WriteImage_DMA(image->data, pixels);
+    LCD_CS_High();
+}
 
-	for(row = 0; row < image->height ; row ++)
-	{
-		for(col = 0; col < image->width ;col ++)
-		{
-			SPI_WriteByte( image->data[index] );
-			SPI_WriteByte( image->data[index+1] );
-			index += 2;
-		}
-	}	
-	LCD_CS_High();
+void DMA1_Stream4_IRQHandler(void)
+{
+    if (DMA_GetITStatus(LCD_DMA_STREAM, DMA_IT_TCIF4) == SET)
+    {
+        BaseType_t higher_priority_task_woken = pdFALSE;
+
+        DMA_ClearITPendingBit(LCD_DMA_STREAM, DMA_IT_TCIF4);
+        xSemaphoreGiveFromISR(lcd_dma_semaphore, &higher_priority_task_woken);
+        portYIELD_FROM_ISR(higher_priority_task_woken);
+    }
 }
