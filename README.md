@@ -142,4 +142,5 @@ WiFi 名称、密码和天气 API URL 当前位于 `app/wireless.h`。公开仓�
 
 ## 项目效果
 
-<img width="810" height="1440" alt="WeatherClock display" src="https://github.com/user-attachments/assets/366dedcc-2219-40cb-b4cb-dff17e68b1ff" />
+<img width="1066" height="1556" alt="8fbda3982ab4e7bfdf60417483789bb4" src="https://github.com/user-attachments/assets/da4be553-0a05-4882-91b7-944c5781cdfe" />
+
